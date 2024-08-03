@@ -693,7 +693,7 @@ def get_response_curves(# jax-ndarray
   n_rows = _calculate_number_rows_plot(
       n_media_channels=media_mix_model.n_media_channels, n_columns=n_columns)
   last_ax = fig.add_subplot(n_rows, 1, n_rows)
-  return predictions
+  return predictions, media_ranges
 
 def plot_cross_correlate(feature: jnp.ndarray,
                          target: jnp.ndarray,
