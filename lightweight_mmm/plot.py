@@ -659,7 +659,7 @@ def generate_response_curves(# jax-ndarray
     predictions = jnp.sum(predictions, axis=-1)
   
   average_allocation = media_mix_model.media.mean(axis=0)
-    average_allocation_predictions = _generate_diagonal_predictions(
+  average_allocation_predictions = _generate_diagonal_predictions(
         media_mix_model=media_mix_model,
         media_values=average_allocation,
         extra_features=extra_features,
