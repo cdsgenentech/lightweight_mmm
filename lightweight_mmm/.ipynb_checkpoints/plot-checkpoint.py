@@ -549,7 +549,7 @@ def plot_response_curves(# jax-ndarray
   plt.close()
   return fig
 
-def get_response_curves(# jax-ndarray
+def generate_response_curves(# jax-ndarray
     media_mix_model: lightweight_mmm.LightweightMMM,
     media_scaler: Optional[preprocessing.CustomScaler] = None,
     target_scaler: Optional[preprocessing.CustomScaler] = None,
@@ -657,9 +657,8 @@ def get_response_curves(# jax-ndarray
   if predictions.ndim == 3:
     media_ranges = jnp.sum(media_ranges, axis=-1)
     predictions = jnp.sum(predictions, axis=-1)
-
-  if optimal_allocation_per_timeunit is not None:
-    average_allocation = media_mix_model.media.mean(axis=0)
+  
+  average_allocation = media_mix_model.media.mean(axis=0)
     average_allocation_predictions = _generate_diagonal_predictions(
         media_mix_model=media_mix_model,
         media_values=average_allocation,
@@ -667,6 +666,9 @@ def get_response_curves(# jax-ndarray
         target_scaler=target_scaler,
         prediction_offset=prediction_offset,
         seed=seed)
+
+  if optimal_allocation_per_timeunit is not None:
+    
     optimal_allocation_predictions = _generate_diagonal_predictions(
         media_mix_model=media_mix_model,
         media_values=optimal_allocation_per_timeunit,
@@ -693,7 +695,7 @@ def get_response_curves(# jax-ndarray
   n_rows = _calculate_number_rows_plot(
       n_media_channels=media_mix_model.n_media_channels, n_columns=n_columns)
   last_ax = fig.add_subplot(n_rows, 1, n_rows)
-  return predictions, media_ranges
+  return predictions, media_ranges, average_allocation_predictions, average_allocation
 
 def plot_cross_correlate(feature: jnp.ndarray,
                          target: jnp.ndarray,
