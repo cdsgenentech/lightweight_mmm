@@ -666,7 +666,14 @@ def generate_response_curves(# jax-ndarray
         target_scaler=target_scaler,
         prediction_offset=prediction_offset,
         seed=seed)
-
+  if media_scaler:
+    average_allocation = media_scaler.inverse_transform(average_allocation)
+  if prices is not None:
+    average_allocation *= prices
+  if media.ndim == 3:
+    average_allocation = jnp.sum(average_allocation, axis=-1)
+    
+      
   if optimal_allocation_per_timeunit is not None:
     
     optimal_allocation_predictions = _generate_diagonal_predictions(
