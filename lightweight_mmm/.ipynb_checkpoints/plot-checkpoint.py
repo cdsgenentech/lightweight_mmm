@@ -659,6 +659,13 @@ def generate_response_curves(# jax-ndarray
     predictions = jnp.sum(predictions, axis=-1)
   
   average_allocation = media_mix_model.media.mean(axis=0)
+  # adjusting for geo allocation (mean --> max)
+  # Same thing should be done for optimal
+  media_maxes_sum_s = media_maxes.sum(axis=1)
+  weights_s = media_maxes/media_maxes_sum_s[:, jnp.newaxis]
+  average_allocation_adj = weights_s*average_allocation.sum(axis=1)[:, jnp.newaxis]
+  average_allocation = average_allocation_adj.copy()
+
   average_allocation_predictions = _generate_diagonal_predictions(
         media_mix_model=media_mix_model,
         media_values=average_allocation,
