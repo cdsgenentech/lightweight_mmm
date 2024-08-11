@@ -669,6 +669,6 @@ class LightweightMMM:
     # -> roi_hat shape (sample, channel, geo)
     roi_hat = sum_unscaled_prediction * media_contribution_hat / unscaled_costs
     
-    roi_national = sum_unscaled_prediction.mean(axis=(0)).sum(axis=1)* media_contribution_hat.mean(axis=(0, 2))/t_c.sum(axis=(0,2))
+    roi_national = sum_unscaled_prediction.mean(axis=(0)).sum(axis=1)* media_contribution_hat.mean(axis=(0, 2))/unscaled_costs.sum(axis=(0, 2))
 
     return media_contribution_hat, roi_hat, roi_national
