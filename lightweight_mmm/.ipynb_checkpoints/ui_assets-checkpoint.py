@@ -100,6 +100,7 @@ def create_response_contribution_df_for_UI(
     media_mix_model: lightweight_mmm.LightweightMMM,
     prices,
     multiplyer,
+    media_scaler:Optional[preprocessing.CustomScaler] = None,
     target_scaler: Optional[preprocessing.CustomScaler] = None,
     channel_names: Optional[Sequence[str]] = None,
     roi_period=12) -> pd.DataFrame:
