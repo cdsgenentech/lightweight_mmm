@@ -239,7 +239,7 @@ def generate_response_curves_for_UI(media_mix_model, multiplyer, prices, media_s
   return resp_df
 
 
-def compute_mroi_for_UI(media_mix_model, multiplyer, prices, media_scaler, target_scaler, channel_names, roi_period=12):
+def compute_mroi_for_UI(media_mix_model, eps_, prices, media_scaler, target_scaler, channel_names, roi_period=12):
   resp_df = pd.DataFrame()
   for i in [-1, 0, 1]:
     multi = 1 + i*multiplyer
