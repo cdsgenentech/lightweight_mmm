@@ -702,13 +702,6 @@ def generate_response_curves(# jax-ndarray
       optimal_allocation_per_timeunit = jnp.sum(
           optimal_allocation_per_timeunit, axis=-1)
 
-  kpi_label = "KPI" if target_scaler else "Normalized KPI"
-  fig = plt.figure(media_mix_model.n_media_channels + 1,
-                   figsize=figure_size,
-                   tight_layout=True)
-  n_rows = _calculate_number_rows_plot(
-      n_media_channels=media_mix_model.n_media_channels, n_columns=n_columns)
-  last_ax = fig.add_subplot(n_rows, 1, n_rows)
   return predictions, media_ranges, average_allocation_predictions, average_allocation
 
 def plot_cross_correlate(feature: jnp.ndarray,
