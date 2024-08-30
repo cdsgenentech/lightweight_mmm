@@ -77,14 +77,14 @@ def _calculate_media_resp_curves_for_UI(
   data = media.at[-roi_period:].set(media[-roi_period:] * multiplyer)
   predict_media = media_mix_model._predict(rng_key=jax.random.PRNGKey(seed=101), media_data=data, 
                          extra_features=extra_features,
-                        media_prior=jnp.array(mmm._media_prior),
-                        degrees_seasonality=mmm._degrees_seasonality,
-                        frequency=mmm._seasonality_frequency,
-                        weekday_seasonality=mmm._weekday_seasonality,
-                        transform_function=mmm._model_transform_function,
-                        model=mmm._model_function,
-                        custom_priors=mmm.custom_priors,
-                        posterior_samples=mmm.trace)
+                        media_prior=jnp.array(media_mix_model._media_prior),
+                        degrees_seasonality=media_mix_model._degrees_seasonality,
+                        frequency=media_mix_model._seasonality_frequency,
+                        weekday_seasonality=media_mix_model._weekday_seasonality,
+                        transform_function=media_mix_model._model_transform_function,
+                        model=media_mix_model._model_function,
+                        custom_priors=media_mix_model.custom_priors,
+                        posterior_samples=media_mix_model.trace)
 
   media_contribution = jnp.einsum(einsum_str,
                                   predict_media["media_transformed"],
@@ -233,7 +233,7 @@ def generate_response_curves_for_UI(media_mix_model, multiplyer, prices, media_s
   num_points = int(1//(multiplyer)+3)
   for i in range(0,num_points):
     multi = i*multiplyer
-    combined_df = create_response_contribution_df_for_UI(mmm, jnp.array(prices), multi, target_scaler, channel_names) 
+    combined_df = create_response_contribution_df_for_UI(media_mix_model, jnp.array(prices), multi, target_scaler, channel_names) 
     resp_df = pd.concat([resp_df, combined_df], ignore_index=True)
   return resp_df
 
@@ -242,7 +242,7 @@ def compute_mroi_for_UI(media_mix_model, multiplyer, prices, media_scaler, targe
   resp_df = pd.DataFrame()
   for i in [-1, 0, 1]:
     multi = 1 + i*multiplyer
-    combined_df = create_response_contribution_df_for_UI(mmm, jnp.array(prices), multi, target_scaler, channel_names) 
+    combined_df = create_response_contribution_df_for_UI(media_mix_model, jnp.array(prices), multi, target_scaler, channel_names) 
     resp_df = pd.concat([resp_df, combined_df], ignore_index=True)
   df_lower = resp_df[resp_df.multiplyer== 1-eps_]
   df_actual = resp_df[resp_df.multiplyer== 1]
