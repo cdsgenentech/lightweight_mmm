@@ -42,7 +42,26 @@ plt.style.use("default")
 _PALETTE = sns.color_palette(n_colors=100)
 
 
-def _calculate_media_resp_curves_for_UI(
+
+def compute_impactable(
+    original_data,
+    media_contribution_df,
+    start_date,
+    end_date):
+  """Computes impactable for any time period for all channels."""
+  start_date = pd.to_datetime(str(start_date), format='%Y%m')
+  end_date = pd.to_datetime(str(end_date), format='%Y%m')
+  if pd.api.types.is_integer_dtype(original_data['date']) or pd.api.types.is_string_dtype(original_data['date']):
+    original_data['date'] = pd.to_datetime(original_data['date'].astype(str), format='%Y%m')
+  media_contribution_df = pd.merge(original_data['date'], media_contribution_df, left_index=True, right_index=True)
+  impactable_data = media_contribution_df[(media_contribution_df['date'] >= start_date)&(media_contribution_df['date'] <= end_date)]
+  impactable_data = impactable_data[[x for x in list(impactable_data) if x.find('contribution') != -1 and x.find('baseline') == -1]]
+  contrib_df = impactable_data.sum()
+  contrib_total = contrib_df.sum()
+  return contrib_df, contrib_total
+
+
+def _calculate_media_resp_curves(
     media_mix_model: lightweight_mmm.LightweightMMM, 
     multiplyer,
     extra_features,
@@ -96,7 +115,7 @@ def _calculate_media_resp_curves_for_UI(
 
 
 
-def create_response_contribution_df_for_UI(
+def create_response_contribution_df(
     media_mix_model: lightweight_mmm.LightweightMMM,
     prices,
     multiplyer,
@@ -119,7 +138,7 @@ def create_response_contribution_df_for_UI(
     percentage & volume.
   """
   # Create media contribution matrix.
-  data, scaled_media_contribution, predicted_media = _calculate_media_resp_curves_for_UI(media_mix_model, multiplyer, None)
+  data, scaled_media_contribution, predicted_media = _calculate_media_resp_curves(media_mix_model, multiplyer, None)
 
   # Aggregate media channel contribution across samples.
   sum_scaled_media_contribution_across_samples = scaled_media_contribution.sum(
@@ -229,21 +248,21 @@ def create_response_contribution_df_for_UI(
   combined_df.loc[:, "multiplyer"] = multiplyer
   return combined_df
 
-def generate_response_curves_for_UI(media_mix_model, multiplyer, prices, media_scaler, target_scaler, channel_names, roi_period=12):
+def generate_response_curves(media_mix_model, multiplyer, prices, media_scaler, target_scaler, channel_names, roi_period=12):
   resp_df = pd.DataFrame()
   num_points = int(1//(multiplyer)+3)
   for i in range(0,num_points):
     multi = i*multiplyer
-    combined_df = create_response_contribution_df_for_UI(media_mix_model, jnp.array(prices), multi, media_scaler, target_scaler, channel_names) 
+    combined_df = create_response_contribution_df(media_mix_model, jnp.array(prices), multi, media_scaler, target_scaler, channel_names) 
     resp_df = pd.concat([resp_df, combined_df], ignore_index=True)
   return resp_df
 
 
-def compute_mroi_for_UI(media_mix_model, eps_, prices, media_scaler, target_scaler, channel_names, roi_period=12):
+def compute_mroi(media_mix_model, eps_, prices, media_scaler, target_scaler, channel_names, roi_period=12):
   resp_df = pd.DataFrame()
   for i in [-1, 0, 1]:
     multi = 1 + i * eps_
-    combined_df = create_response_contribution_df_for_UI(media_mix_model, jnp.array(prices), multi, media_scaler, target_scaler, channel_names) 
+    combined_df = create_response_contribution_df(media_mix_model, jnp.array(prices), multi, media_scaler, target_scaler, channel_names) 
     resp_df = pd.concat([resp_df, combined_df], ignore_index=True)
   df_lower = resp_df[resp_df.multiplyer== 1-eps_]
   df_actual = resp_df[resp_df.multiplyer== 1]
