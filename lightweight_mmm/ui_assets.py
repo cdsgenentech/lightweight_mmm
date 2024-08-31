@@ -19,7 +19,7 @@ import logging
 
 # Using these types from typing instead of their generic types in the type hints
 # in order to be compatible with Python 3.7 and 3.8.
-from typing import Any, List, Optional, Sequence, Tuple
+from typing import Any, List, Optional, Sequence, Tuple, Dict
 
 import arviz
 import jax
