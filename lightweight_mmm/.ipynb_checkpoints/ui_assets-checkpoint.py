@@ -44,44 +44,119 @@ _PALETTE = sns.color_palette(n_colors=100)
 
 
 def compute_impactable(
-    original_data,
-    media_contribution_df,
-    start_date,
-    end_date):
-  """Computes impactable for any time period for all channels."""
+    original_data: pd.DataFrame,
+    cost_cols: List[str],
+    media_contribution_df: pd.DataFrame,
+    start_date: int,
+    end_date: int
+) -> Tuple[pd.DataFrame, float, float]:
+    
+  """
+  Computes impactable metrics for a specified time period across all channels.
+
+    This function aggregates sales and cost data within a specified date range,
+    merges it with media contribution data, and calculates return on investment (ROI)
+    for each channel. Additionally, it computes the total contribution of all channels
+    relative to sales and the overall ROI.
+
+    Args:
+        original_data : original feature table
+        
+        cost_cols : list of cost columns
+        
+        media_contribution_df : media contribution dataframe obtained from
+        plot.create_media_baseline_contribution_df
+        
+        start_date : int or str
+        The start date of the period for which to compute the impact, in YYYYMM format.
+        
+        end_date : int or str
+        The end date of the period for which to compute the impact, in YYYYMM format.
+
+   Returns:
+        contrib_df : pd.DataFrame
+        A DataFrame containing the total contributions, cost and ROI for each channel
+        within the specified date range.
+        
+        total_contribution : float
+        The total contribution of all channels relative to the sales within the date range.
+        
+        total_roi : float
+        The overall return on investment (ROI) across all channels within the date range.
+
+  """
+  original_data = original_data.groupby('date', as_index=False).sum()
+  channel_list = [x.replace('_cost', '') for x in cost_cols]
   start_date = pd.to_datetime(str(start_date), format='%Y%m')
   end_date = pd.to_datetime(str(end_date), format='%Y%m')
+  original_data = original_data[['date', 'sale']+cost_cols]
   if pd.api.types.is_integer_dtype(original_data['date']) or pd.api.types.is_string_dtype(original_data['date']):
     original_data['date'] = pd.to_datetime(original_data['date'].astype(str), format='%Y%m')
-  media_contribution_df = pd.merge(original_data['date'], media_contribution_df, left_index=True, right_index=True)
+  media_contribution_df = pd.merge(original_data, media_contribution_df, left_index=True, right_index=True)
   impactable_data = media_contribution_df[(media_contribution_df['date'] >= start_date)&(media_contribution_df['date'] <= end_date)]
-  impactable_data = impactable_data[[x for x in list(impactable_data) if x.find('contribution') != -1 and x.find('baseline') == -1]]
+  impactable_data = impactable_data.drop('date', axis=1)
   contrib_df = impactable_data.sum()
-  contrib_total = contrib_df.sum()
-  return contrib_df, contrib_total
+  contrib_df = pd.DataFrame(contrib_df).T
+  for channel in channel_list:
+    contrib_df[f'{channel} roi'] = contrib_df[f'{channel} contribution']/contrib_df[f'{channel}_cost']
+  contrib_total = contrib_df[[x for x in list(impactable_data) if x.find('contribution') != -1 and x.find('baseline') == -1]]
+  contrib_total = contrib_total.sum().sum()
+  total_contribution = contrib_total/impactable_data['sale'].sum()
+  total_roi = contrib_total/impactable_data[cost_cols].sum().sum()
+  return contrib_df, total_contribution, total_roi
 
 
 def _calculate_media_resp_curves(
     media_mix_model: lightweight_mmm.LightweightMMM, 
-    multiplyer,
-    extra_features,
-    roi_period=12) -> jnp.ndarray:
-  """Computes contribution for each sample, time, channel.
-
-  Serves as a helper function for making predictions for each channel, time
-  and estimate sample. It is meant to be used in creating media baseline
-  contribution dataframe and visualize media attribution over spend proportion
-  plot.
-
-  Args:
-    media_mix_model: Media mix model.
-
-  Returns:
-    Estimation of contribution for each sample, time, channel.
-
-  Raises:
-    NotFittedModelError: if the model is not fitted before computation
+    multiplyer: float,
+    extra_features: jnp.ndarray,
+    roi_period: int = 12
+    ) -> Tuple[jnp.ndarray, jnp.ndarray, Dict[str, jnp.ndarray]]:
+    
   """
+    Computes the media contribution curves for each sample, time, and channel.
+
+    This helper function estimates the contribution of media channels over a specified 
+    ROI period by adjusting the media data with a given multiplier. It performs predictions 
+    using the media mix model, taking into account additional features, and calculates 
+    the contribution of each media channel across different samples and time points.
+
+    The function is intended to be used within the `create_response_contribution_df` function.
+
+    Args:
+        media_mix_model : lightweight_mmm.LightweightMMM
+    
+        multiplyer : float
+        A multiplier applied to the media data for the specified ROI period. This 
+        array adjusts the media data to simulate different spending scenarios.
+    
+        extra_features : jnp.ndarray
+        Additional features used by the media mix model during prediction. These 
+        features may include variables like seasonality, holidays, or other external factors.
+    
+        roi_period : int, optional
+        The number of time periods (e.g., months, weeks) for which to compute the 
+        media contributions. The default is 12.
+
+    Returns:
+        data : jnp.ndarray
+        The adjusted media data after applying the multiplier for the specified ROI period.
+    
+        media_contribution : jnp.ndarray
+        The estimated contribution of each media channel for each sample, time, and 
+        channel combination. If the data includes multiple geographic regions (geos), 
+        contributions are aggregated across geos.
+    
+        predict_media : Dict[str, jnp.ndarray]
+        A dictionary containing the predicted media transformations and other outputs 
+        from the model's `_predict` method. This includes the transformed media data 
+        and other prediction-related metrics.
+
+    Raises:
+        NotFittedModelError
+        If the media mix model has not been fitted with data before attempting to compute 
+        the media response curves.
+    """
   if not hasattr(media_mix_model, "trace"):
     raise lightweight_mmm.NotFittedModelError(
         "Model needs to be fit first before attempting to plot its fit.")
@@ -117,25 +192,48 @@ def _calculate_media_resp_curves(
 
 def create_response_contribution_df(
     media_mix_model: lightweight_mmm.LightweightMMM,
-    prices,
-    multiplyer,
-    media_scaler:Optional[preprocessing.CustomScaler] = None,
+    prices: jnp.ndarray,
+    multiplyer: float,
+    media_scaler: Optional[preprocessing.CustomScaler] = None,
     target_scaler: Optional[preprocessing.CustomScaler] = None,
     channel_names: Optional[Sequence[str]] = None,
-    roi_period=12) -> pd.DataFrame:
-  """Creates a dataframe for weekly media channels & basline contribution.
+    roi_period: int = 12) -> pd.DataFrame:
+    
+  """
+    Creates a DataFrame summarizing the contribution of media channels and baseline over a specified ROI period
+    for different level of spend for each channel.
 
-  The output dataframe will be used to create a stacked area plot to visualize
-  the contribution of each media channels & baseline.
+    Args:
+        media_mix_model : lightweight_mmm.LightweightMMM
 
-  Args:
-    media_mix_model: Media mix model.
-    target_scaler: Scaler used for scaling the target.
-    channel_names: Names of media channels.
+        prices : jnp.ndarray
+        A JAX array containing the prices for each media channel. This is used to calculate the spend.
 
-  Returns:
-    contribution_df: DataFrame of weekly channels & baseline contribution
-    percentage & volume.
+        multiplyer : float
+        A multiplier applied to the media data to simulate different scenarios, such as increased or decreased media spend.
+
+        media_scaler : Optional[preprocessing.CustomScaler], optional
+        An optional scaler used to inverse transform the media data. If not provided, no scaling is applied.
+
+        target_scaler : Optional[preprocessing.CustomScaler], optional
+        An optional scaler used to inverse transform the target predictions. If not provided, no scaling is applied.
+
+        channel_names : Optional[Sequence[str]], optional
+        A list of names corresponding to the media channels. If not provided, the names will be taken from the media mix model.
+
+        roi_period : int, optional
+        The number of periods (months) for which to calculate the media contributions. The default is 12.
+
+    Returns:
+        pd.DataFrame
+        A DataFrame containing the contribution percentages, volumes, and spends for each media channel and baseline. 
+        The DataFrame is summarized over the specified ROI period, with each row representing the total contributions 
+        and spends for that period.
+
+    Raises:
+        NotFittedModelError
+        If the media mix model has not been fitted with data before calling this function.
+
   """
   # Create media contribution matrix.
   data, scaled_media_contribution, predicted_media = _calculate_media_resp_curves(media_mix_model, multiplyer, None)
@@ -248,7 +346,51 @@ def create_response_contribution_df(
   combined_df.loc[:, "multiplyer"] = multiplyer
   return combined_df
 
-def generate_response_curves(media_mix_model, multiplyer, prices, media_scaler, target_scaler, channel_names, roi_period=12):
+def generate_response_curves(
+    media_mix_model: lightweight_mmm.LightweightMMM,
+    multiplyer: float,
+    prices: jnp.ndarray,
+    media_scaler: Optional[preprocessing.CustomScaler] = None,
+    target_scaler: Optional[preprocessing.CustomScaler] = None,
+    channel_names: Optional[Sequence[str]] = None,
+    roi_period: int = 12
+) -> pd.DataFrame:
+    
+  """
+    Generates response curves by varying media spend and calculating contributions for each multiplier.
+
+    This function creates a DataFrame summarizing the contributions of media channels and baseline across different
+    levels of media spend. It repeatedly calls `create_response_contribution_df` with increasing multipliers to simulate
+    different spend scenarios. The resulting DataFrame can be used to analyze how changes in media spend affect 
+    channel contributions and ROI.
+
+    Args:
+        media_mix_model : lightweight_mmm.LightweightMMM
+
+        multiplyer : float
+        The increment by which media spend is varied to generate different scenarios. Determines the step size in the response curves.
+
+        prices : jnp.ndarray
+        A JAX array containing the prices for each media channel. This is used to calculate the spend.
+
+        media_scaler : Optional[preprocessing.CustomScaler], optional
+        An optional scaler used to inverse transform the media data. If not provided, no scaling is applied.
+
+        target_scaler : Optional[preprocessing.CustomScaler], optional
+        An optional scaler used to inverse transform the target predictions. If not provided, no scaling is applied.
+
+        channel_names : Optional[Sequence[str]], optional
+        A list of names corresponding to the media channels. If not provided, the names will be taken from the media mix model.
+
+        roi_period : int, optional
+        The number of periods (months) for which to calculate the media contributions. The default is 12.
+
+    Returns:
+        pd.DataFrame
+        A DataFrame containing the contribution percentages, volumes, and spends for each media channel and baseline 
+        across different levels of media spend. Each row represents the total contributions and spends for a specific multiplier value.
+  """
+
   resp_df = pd.DataFrame()
   num_points = int(1//(multiplyer)+3)
   for i in range(0,num_points):
@@ -258,7 +400,52 @@ def generate_response_curves(media_mix_model, multiplyer, prices, media_scaler, 
   return resp_df
 
 
-def compute_mroi(media_mix_model, eps_, prices, media_scaler, target_scaler, channel_names, roi_period=12):
+def compute_mroi(
+    media_mix_model: lightweight_mmm.LightweightMMM,
+    eps_: float,
+    prices: jnp.ndarray,
+    media_scaler: Optional[preprocessing.CustomScaler] = None,
+    target_scaler: Optional[preprocessing.CustomScaler] = None,
+    channel_names: Optional[Sequence[str]] = None,
+    roi_period: int = 12
+) -> pd.DataFrame:
+    
+    """
+    Computes the marginal return on investment (MROI) for each media channel.
+
+    This function calculates the MROI by comparing the media contributions and spend at two different levels of 
+    media investment: slightly lower, and slightly higher. The MROI is computed as the change in contribution 
+    divided by the change in spend for each channel. The function returns a DataFrame containing the MROI for each 
+    channel, which is useful for understanding the efficiency of additional investments in each media channel.
+
+    Args:
+        media_mix_model : lightweight_mmm.LightweightMMM
+        A fitted media mix model used to estimate media contributions over the ROI period.
+
+        eps_ : float
+        A small percentage change in media spend used to compute the MROI. It determines the sensitivity of the calculation.
+
+        prices : jnp.ndarray
+        A JAX array containing the prices for each media channel. This is used to calculate the spend.
+
+        media_scaler : Optional[preprocessing.CustomScaler], optional
+        An optional scaler used to inverse transform the media data. If not provided, no scaling is applied.
+
+        target_scaler : Optional[preprocessing.CustomScaler], optional
+        An optional scaler used to inverse transform the target predictions. If not provided, no scaling is applied.
+
+        channel_names : Optional[Sequence[str]], optional
+        A list of names corresponding to the media channels. If not provided, the names will be taken from the media mix model.
+
+        roi_period : int, optional
+        The number of periods (e.g., weeks, months) for which to calculate the media contributions. The default is 12.
+
+    Returns:
+        pd.DataFrame
+        A DataFrame containing the MROI for each media channel. The DataFrame includes the channel name and its 
+        corresponding MROI value.
+  """
+    
   resp_df = pd.DataFrame()
   for i in [-1, 0, 1]:
     multi = 1 + i * eps_
