@@ -156,7 +156,7 @@ def _calculate_media_resp_curves(
         NotFittedModelError
         If the media mix model has not been fitted with data before attempting to compute 
         the media response curves.
-    """
+  """
   if not hasattr(media_mix_model, "trace"):
     raise lightweight_mmm.NotFittedModelError(
         "Model needs to be fit first before attempting to plot its fit.")
@@ -410,7 +410,7 @@ def compute_mroi(
     roi_period: int = 12
 ) -> pd.DataFrame:
     
-    """
+  """
     Computes the marginal return on investment (MROI) for each media channel.
 
     This function calculates the MROI by comparing the media contributions and spend at two different levels of 
